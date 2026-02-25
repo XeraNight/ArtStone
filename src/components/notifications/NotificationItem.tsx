@@ -2,7 +2,7 @@
 import { formatDistanceToNow } from 'date-fns';
 import { sk } from 'date-fns/locale';
 import { UserPlus, FileText, Check } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { Notification } from '@/hooks/useNotifications';
 import { useMarkAsRead } from '@/hooks/useNotifications';
@@ -13,7 +13,7 @@ interface NotificationItemProps {
 }
 
 export function NotificationItem({ notification, onClose }: NotificationItemProps) {
-    const navigate = useNavigate();
+    const router = useRouter();
     const markAsRead = useMarkAsRead();
 
     const getIcon = () => {
@@ -36,9 +36,9 @@ export function NotificationItem({ notification, onClose }: NotificationItemProp
         // Navigate to entity detail
         if (notification.entity_type && notification.entity_id) {
             const path = notification.entity_type === 'client'
-                ? `/clients`
-                : `/leads`;
-            navigate(path);
+                ? `/app/clients`
+                : `/app/leads`;
+            router.push(path);
             onClose?.();
         }
     };

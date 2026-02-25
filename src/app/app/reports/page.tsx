@@ -1,19 +1,12 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { ReportsClientView } from './components/ReportsClientView';
+"use client";
 
-export default async function ReportsPage() {
-  const supabase = await createClient();
+import dynamic from 'next/dynamic';
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+const ReportsClientView = dynamic(
+  () => import('./components/ReportsClientView').then((mod) => mod.ReportsClientView),
+  { ssr: false }
+);
 
-  if (!user) {
-    return redirect('/login');
-  }
-
-  // TODO: Add role check here later (e.g., if user role !== 'admin', redirect)
-
+export default function ReportsPage() {
   return <ReportsClientView />;
 }

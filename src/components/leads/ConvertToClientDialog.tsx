@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import {
     Dialog,
     DialogContent,
@@ -27,7 +27,7 @@ export function ConvertToClientDialog({
     open,
     onOpenChange,
 }: ConvertToClientDialogProps) {
-    const navigate = useNavigate();
+    const router = useRouter();
     const convertLead = useConvertLead();
     const [isConverting, setIsConverting] = useState(false);
 
@@ -42,7 +42,7 @@ export function ConvertToClientDialog({
                 description: `${result.activitiesCopied} aktivít bolo prenesených`,
                 action: {
                     label: 'Zobraziť klienta',
-                    onClick: () => navigate(`/clients`),
+                    onClick: () => router.push(`/app/clients`),
                 },
             });
 

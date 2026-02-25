@@ -24,14 +24,6 @@ const nextConfig: NextConfig = {
     "http://172.20.10.7:8080",
     "http://localhost:8080"
   ],
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: securityHeaders,
-      },
-    ];
-  },
 };
 
 export default nextConfig;

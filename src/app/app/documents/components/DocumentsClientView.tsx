@@ -10,18 +10,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageSkeleton } from "@/components/ui/PageSkeleton";
 import { FileText, Upload, Download, Trash2, Search, File, FileImage, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client"; // Keep createClient for upload/download/delete
-
-interface StorageDocument {
-  id: string;
-  name: string;
-  storage_path: string;
-  file_type: string | null;
-  file_size: number | null;
-  created_at: string;
-  // Assuming 'title' and 'category' might be added later or are conceptual for the instruction
-  // For now, 'title' will map to 'name' and 'category' will be ignored in filtering if not present.
-}
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 function getFileIcon(fileType?: string | null) {
   if (!fileType) return <File className="w-5 h-5 text-muted-foreground" />;
@@ -37,7 +27,9 @@ function formatBytes(bytes?: number | null) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function DocumentsClientView({ userId }: { userId: string }) {
+export function DocumentsClientView() {
+  const { user } = useAuth();
+  const userId = user?.id || "";
   // State
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);

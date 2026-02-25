@@ -1,21 +1,20 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { QuotesClientView } from './components/QuotesClientView';
+"use client";
 
-export default async function QuotesPage() {
-  const supabase = await createClient();
+import dynamic from 'next/dynamic';
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+const QuotesClientView = dynamic(
+  () => import('./components/QuotesClientView').then((mod) => mod.QuotesClientView),
+  { ssr: false }
+);
 
-  if (authError || !user) {
-    redirect('/login');
-  }
-
+export default function QuotesPage() {
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in text-left">
+      <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-display font-bold">Cenové ponuky</h1>
-        <p className="text-muted-foreground">Správa a tvorba cenových ponúk pre klientov.</p>
-        <QuotesClientView />
+        <p className="text-muted-foreground text-sm uppercase tracking-widest font-mono">Správa dopytov a ponúk</p>
+      </div>
+      <QuotesClientView />
     </div>
   );
 }

@@ -1,28 +1,20 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { InvoicesClientView } from './components/InvoicesClientView';
+"use client";
 
-export default async function InvoicesPage() {
-  const supabase = await createClient();
+import dynamic from 'next/dynamic';
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+const InvoicesClientView = dynamic(
+  () => import('./components/InvoicesClientView').then((mod) => mod.InvoicesClientView),
+  { ssr: false }
+);
 
-  if (authError || !user) {
-    redirect('/login');
-  }
-
-  const role = user.user_metadata?.role || 'sales';
-  
-  if (role === 'sales') {
-    // Only Admin and Manager can access invoices 
-    redirect('/app/dashboard');
-  }
-
+export default function InvoicesPage() {
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in text-left">
+      <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-display font-bold">Faktúry</h1>
-        <p className="text-muted-foreground">Správa prijatých a vydaných faktúr.</p>
-        <InvoicesClientView />
+        <p className="text-muted-foreground text-sm uppercase tracking-widest font-mono">Správa fakturácie</p>
+      </div>
+      <InvoicesClientView />
     </div>
   );
 }

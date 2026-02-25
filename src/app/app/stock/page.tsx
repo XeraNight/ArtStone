@@ -1,20 +1,12 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { StockClientView } from './components/StockClientView';
+"use client";
 
-export default async function StockPage() {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+import dynamic from 'next/dynamic';
 
-  if (authError || !user) {
-    redirect('/login');
-  }
+const StockClientView = dynamic(
+  () => import('./components/StockClientView').then((mod) => mod.StockClientView),
+  { ssr: false }
+);
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <h1 className="text-3xl font-display font-bold">Sklad</h1>
-      <p className="text-muted-foreground">Správa skladových zásob a materiálov.</p>
-      <StockClientView />
-    </div>
-  );
+export default function StockPage() {
+  return <StockClientView />;
 }

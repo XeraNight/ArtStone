@@ -1,20 +1,13 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { ClientsClientView } from './components/ClientsClientView';
+"use client";
 
-export default async function ClientsPage() {
-  const supabase = await createClient();
+import dynamic from 'next/dynamic';
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+const ClientsClientView = dynamic(
+  () => import('./components/ClientsClientView').then((mod) => mod.ClientsClientView),
+  { ssr: false }
+);
 
-  if (authError || !user) {
-    redirect('/login');
-  }
-
-  const role = user.user_metadata?.role || 'sales';
-  const isAdmin = role === 'admin';
-  const isManager = role === 'manager';
-
+export default function ClientsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
         <h1 className="text-3xl font-display font-bold">Klienti</h1>

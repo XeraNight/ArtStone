@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AuditLog {
   id: string;
@@ -25,7 +26,9 @@ interface UserWithRole {
   status?: string;
 }
 
-export function SettingsClientView({ userId }: { userId: string }) {
+export function SettingsClientView() {
+  const { user } = useAuth();
+  const userId = user?.id || "";
   const [activeTab, setActiveTab] = useState("profile");
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [users, setUsers] = useState<UserWithRole[]>([]);

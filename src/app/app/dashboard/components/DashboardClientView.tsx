@@ -1,9 +1,14 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { ManagerDashboard } from "./ManagerDashboard";
 import { SalesDashboard } from "./SalesDashboard";
 
-export function DashboardClientView({ firstName, role }: { firstName: string, role: string }) {
+export function DashboardClientView() {
+  const { user } = useAuth();
+  const firstName = user?.name?.split(' ')[0] || "Užívateľ";
+  const role = user?.role || 'sales';
+  
   // role 'admin'alebo 'manager' vidí ManagerDashboard
   // ostatní ('sales', 'user') vidia SalesDashboard
   const isManager = role === 'admin' || role === 'manager';

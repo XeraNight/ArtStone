@@ -1,33 +1,22 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { SettingsClientView } from './components/SettingsClientView';
+"use client";
 
-export default async function SettingsPage() {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+import dynamic from 'next/dynamic';
 
-  if (authError || !user) {
-    redirect('/login');
-  }
+const SettingsClientView = dynamic(
+  () => import('./components/SettingsClientView').then((mod) => mod.SettingsClientView),
+  { ssr: false }
+);
 
-  // Server-side role check (3rd layer: UI guard + middleware already checked)
-  const { data: roleData } = await supabase
-    .from('user_roles')
-    .select('roles(name)')
-    .eq('user_id', user.id)
-    .single();
-
-  const roleName = (roleData as { roles: { name: string } | null } | null)?.roles?.name;
-
-  if (roleName !== 'admin') {
-    redirect('/app/dashboard');
-  }
-
+export default function SettingsPage() {
   return (
-    <div className="space-y-6 animate-fade-in">
-      <h1 className="text-3xl font-display font-bold">Nastavenia</h1>
-      <p className="text-muted-foreground">Správa systému, rolí a bezpečnostných nastavení.</p>
-      <SettingsClientView userId={user.id} />
+    <div className="animate-fade-in h-full flex flex-col">
+      <div className="p-8 pb-4">
+        <h1 className="text-3xl font-display font-bold text-slate-100 mb-2">Nastavenia systému</h1>
+        <p className="text-slate-400 text-sm font-mono uppercase tracking-[0.2em]">Konfigurácia & Správa používateľov</p>
+      </div>
+      <div className="flex-1 overflow-visible">
+        <SettingsClientView />
+      </div>
     </div>
   );
 }

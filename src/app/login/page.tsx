@@ -1,14 +1,15 @@
+"use client";
+
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AuthTabs } from './components/AuthTabs';
+import { Spinner } from '@/components/ui/spinner';
 
-export default async function LoginPage({
-    searchParams,
-}: {
-    searchParams: Promise<{ message: string }>
-}) {
-
-    const { message } = await searchParams;
+function LoginContent() {
+    const searchParams = useSearchParams();
+    const message = searchParams?.get('message') || '';
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 gradient-stone">
@@ -41,5 +42,17 @@ export default async function LoginPage({
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center gradient-stone">
+                <Spinner className="size-8 text-primary" />
+            </div>
+        }>
+            <LoginContent />
+        </Suspense>
     );
 }

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ArrowRight, Phone, Mail } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { useRecentLeads } from '@/hooks/useDashboardStats';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -40,7 +40,7 @@ export const RecentLeads = memo(function RecentLeads() {
           asChild
           className="text-muted-foreground hover:text-foreground hover:bg-accent"
         >
-          <Link to="/leads" className="gap-1 font-medium">
+          <Link href="/app/leads" className="gap-1 font-medium">
             Zobraziť všetky
             <ArrowRight className="h-4 w-4" />
           </Link>
