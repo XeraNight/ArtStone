@@ -11,6 +11,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: 'export',
+  basePath: '/ArtStone',
+  trailingSlash: true,
+  images: {
+    unoptimized: true,
+  },
   // @ts-ignore - Supress Next.js TS errors for unreleased types
   allowedDevOrigins: [
     "http://172.20.10.7", 

@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useSidebar } from "./AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 
-type UserRole = "admin" | "manager" | "sales" | "accountant" | "warehouse";
+type UserRole = "admin" | "manager" | "sales" | "accountant" | "warehouse" | "client";
 
 interface NavItem {
   title: string;
@@ -55,7 +55,7 @@ const navItems: NavItem[] = [
     title: "Projekty (Dokumenty)",
     href: "/app/documents",
     icon: FolderOpen,
-    roles: ["admin", "manager", "sales"],
+    roles: ["admin", "manager", "sales", "client"],
     group: "main"
   },
   {
@@ -79,14 +79,16 @@ export function AppSidebar() {
   }, []);
 
   const filteredNavItems = navItems.filter((item) => {
-    // If not mounted or auth is loading, we default to "sales" so the sidebar
-    // at least renders something during SSR and initial hydration to avoid layout shifts.
-    if (!mounted || isLoading) {
-       return item.roles.includes("sales");
+    // If we have a user role, use it immediately
+    if (user?.role) {
+      const currentRole = String(user.role).toLowerCase();
+      if (currentRole === "admin") return true;
+      return item.roles.includes(currentRole as UserRole);
     }
     
-    const currentRole = user?.role ? String(user.role).toLowerCase() as UserRole : "sales";
-    return item.roles.includes(currentRole);
+    // Default during SSR/Loading/Unauthenticated
+    // Show "sales" items as a baseline to prevent empty sidebar
+    return item.roles.includes("sales");
   });
 
   const mainItems = filteredNavItems.filter(i => i.group === "main");
