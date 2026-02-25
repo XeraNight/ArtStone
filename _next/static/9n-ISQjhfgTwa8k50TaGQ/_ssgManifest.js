@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fapp\u002Fleads\u002F[id]","\u002Fapp\u002Fstock\u002F[id]","\u002Fapp\u002Fstock\u002F[id]\u002Fedit"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
