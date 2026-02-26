@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 
-export type UserRole = 'admin' | 'manager' | 'sales';
+export type UserRole = 'admin' | 'manager' | 'sales' | 'správca';
 export type OAuthProvider = 'google' | 'github' | 'azure' | 'facebook';
 
 export interface AppUser {

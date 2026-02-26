@@ -15,7 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLeads, useUpdateLeadStatus, useDeleteLead } from "@/hooks/useLeads";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRegions } from "@/hooks/useRegions";
-import { useSalespeople, useAllUsers } from "@/hooks/useSalespeople";
+import { useSalespeople } from "@/hooks/useSalespeople";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Lead, LeadStatus, LeadSource } from "@/types/database";
@@ -75,7 +75,6 @@ export function LeadsClientView() {
   const { data: leads, isLoading, isError } = useLeads();
   const { data: regions = [] } = useRegions();
   const { data: salespeople = [] } = useSalespeople();
-  const { data: allUsers = [] } = useAllUsers();
   const updateStatus = useUpdateLeadStatus();
   const deleteLead = useDeleteLead();
 

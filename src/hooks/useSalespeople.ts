@@ -10,6 +10,8 @@ interface Salesperson extends Profile {
     leads: number;
     clients: number;
     quotes: number;
+    targetProgress?: number;
+    conversionRate?: number;
   };
 }
 
@@ -24,7 +26,7 @@ export function useSalespeople() {
         .from('profiles')
         .select(`
           *,
-          region:regions(id, name)
+          regions(id, name)
         `)
         .eq('role', 'sales')
         .eq('is_active', true);
@@ -56,13 +58,21 @@ export function useSalespeople() {
               .eq('created_by', profile.id),
           ]);
 
+          // Mocking conversion and progress as it depends on more complex logic usually
+          const leads = leadsResult.count || 0;
+          const clients = clientsResult.count || 0;
+          const conversionRate = leads > 0 ? Math.round((clients / leads) * 100) : 0;
+
           return {
             ...profile,
             role: 'sales' as AppRole,
+            region: profile.regions,
             stats: {
-              leads: leadsResult.count || 0,
-              clients: clientsResult.count || 0,
+              leads: leads,
+              clients: clients,
               quotes: quotesResult.count || 0,
+              conversionRate,
+              targetProgress: Math.min(100, Math.round((clients / 10) * 100)) // Mock target
             },
           };
         })
@@ -70,67 +80,6 @@ export function useSalespeople() {
 
       return salespeopleWithStats;
     },
-    enabled: !!user && (user.role === 'admin' || user.role === 'manager'),
-  });
-}
-
-export function useAllUsers() {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['all-users'],
-    queryFn: async () => {
-      console.log('=== Fetching all users ===');
-
-      try {
-        // Try with region join first
-        let query = supabase
-          .from('profiles')
-          .select('*')
-          .order('full_name');
-
-        // Manager can only see users in their region
-        if (user?.role === 'manager' && user.regionId) {
-          query = query.eq('region_id', user.regionId);
-          console.log('Manager filter applied for region:', user.regionId);
-        }
-
-        let { data: profiles, error } = await query;
-
-        if (error) {
-          console.error('Error fetching users:', error);
-          throw error;
-        }
-
-        // If we have profiles, try to fetch region data separately
-        if (profiles && profiles.length > 0) {
-          const regionIds = [...new Set(profiles.map(p => p.region_id).filter(Boolean))];
-
-          if (regionIds.length > 0) {
-            const { data: regions } = await supabase
-              .from('regions')
-              .select('id, name')
-              .in('id', regionIds);
-
-            // Attach region data to profiles
-            profiles = profiles.map(profile => ({
-              ...profile,
-              region: profile.region_id && regions
-                ? regions.find(r => r.id === profile.region_id) || null
-                : null
-            }));
-          }
-        }
-
-        return (profiles || []).map(profile => ({
-          ...profile,
-          role: (profile.role as AppRole) || 'sales',
-        }));
-      } catch (error) {
-        console.error('useAllUsers query failed:', error);
-        throw error;
-      }
-    },
-    enabled: !!user && (user.role === 'admin' || user.role === 'manager'),
+    enabled: !!user && (user.role === 'admin' || user.role === 'manager' || user.role === 'správca'),
   });
 }

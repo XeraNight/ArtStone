@@ -12,7 +12,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: '/ArtStone',
+  basePath: process.env.NODE_ENV === 'production' ? '/ArtStone' : '',
   trailingSlash: true,
   images: {
     unoptimized: true,

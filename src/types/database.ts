@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'manager' | 'sales';
+export type AppRole = 'admin' | 'manager' | 'sales' | 'správca';
 export type LeadStatus = 'new' | 'contacted' | 'offer' | 'won' | 'lost' | 'waiting';
 export type LeadSource = 'facebook_lead_ads' | 'facebook_ads' | 'google_ads' | 'website_form' | 'manual';
 export type ClientStatus = 'active' | 'inactive' | 'prospect' | 'completed';

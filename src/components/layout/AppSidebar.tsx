@@ -39,30 +39,37 @@ const navItems: NavItem[] = [
   },
   {
     title: "Leady a klienti",
-    href: "/app/clients", // Or combine leads/clients if that's the routing
+    href: "/app/clients",
     icon: Users,
     roles: ["admin", "manager", "sales"],
+    group: "main"
+  },
+  {
+    title: "Obchodníci",
+    href: "/app/salespeople",
+    icon: Users,
+    roles: ["admin", "manager"],
     group: "main"
   },
   {
     title: "Sklad",
     href: "/app/stock",
     icon: Package,
-    roles: ["admin", "manager", "sales", "warehouse"],
+    roles: ["admin"], // Manager/Sales hidden per request
     group: "main"
   },
   {
-    title: "Projekty (Dokumenty)",
+    title: "Dokumenty",
     href: "/app/documents",
     icon: FolderOpen,
-    roles: ["admin", "manager", "sales", "client"],
+    roles: ["admin", "manager", "sales"],
     group: "main"
   },
   {
     title: "Nastavenia",
     href: "/app/settings",
     icon: Settings,
-    roles: ["admin"],
+    roles: ["admin", "manager", "sales"],
     group: "system"
   }
 ];
@@ -71,7 +78,7 @@ export function AppSidebar() {
   const { collapsed, setCollapsed } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isLoading } = useAuth(); // <--- Get real user and logout function
+  const { user, logout, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -79,15 +86,18 @@ export function AppSidebar() {
   }, []);
 
   const filteredNavItems = navItems.filter((item) => {
-    // If we have a user role, use it immediately
+    if (!mounted) return item.roles.includes("sales");
+
     if (user?.role) {
       const currentRole = String(user.role).toLowerCase();
-      if (currentRole === "admin") return true;
+      // "admin" or "správca" get everything
+      if (currentRole === "admin" || currentRole === "správca") return true;
+      
+      // Strict role check
       return item.roles.includes(currentRole as UserRole);
     }
     
-    // Default during SSR/Loading/Unauthenticated
-    // Show "sales" items as a baseline to prevent empty sidebar
+    // Default while loading/unauthenticated to prevent flash
     return item.roles.includes("sales");
   });
 
