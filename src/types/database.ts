@@ -1,5 +1,6 @@
 export type AppRole = 'admin' | 'manager' | 'sales' | 'správca';
 export type LeadStatus = 'new' | 'contacted' | 'offer' | 'won' | 'lost' | 'waiting';
+export type LeadPriority = 'high' | 'medium' | 'low' | 'none';
 export type LeadSource = 'facebook_lead_ads' | 'facebook_ads' | 'google_ads' | 'website_form' | 'manual';
 export type ClientStatus = 'active' | 'inactive' | 'prospect' | 'completed';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
@@ -41,6 +42,7 @@ export interface Lead {
   email: string | null;
   phone: string | null;
   address: string | null;
+  city: string | null;
   postal_code: string | null;
   region_id: string | null;
   status: LeadStatus;
@@ -53,9 +55,13 @@ export interface Lead {
   utm_campaign: string | null;
   external_lead_id: string | null;
   assigned_user_id: string | null;
+  salesperson_id: string | null;
+  client_id: string | null;
   duplicate_of_lead_id: string | null;
   converted_to_client_id: string | null;
   notes: string | null;
+  priority: LeadPriority;
+  photo_url: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -75,9 +81,11 @@ export interface Client {
   region_id: string | null;
   status: ClientStatus;
   assigned_user_id: string | null;
+  salesperson_id: string | null;
   lead_origin_id: string | null;
   total_value: number;
   notes: string | null;
+  photo_url: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

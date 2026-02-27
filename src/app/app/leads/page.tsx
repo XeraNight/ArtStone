@@ -9,9 +9,7 @@ const LeadsClientView = dynamic(
 
 export default function LeadsPage() {
   return (
-    <div className="space-y-6 animate-fade-in">
-        <h1 className="text-3xl font-display font-bold">Zoznam Leadov</h1>
-        <p className="text-muted-foreground">Správa všetkých dopytov a potenciálnych klientov.</p>
+    <div className="animate-fade-in">
         <LeadsClientView />
     </div>
   );

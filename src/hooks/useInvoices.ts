@@ -98,6 +98,7 @@ export function useCreateInvoice() {
         inventory_item_id?: string;
       }>;
     }) => {
+      console.log('useCreateInvoice: Starting mutation with data:', invoice);
       const invoiceNumber = await generateInvoiceNumber();
 
       // Calculate totals
@@ -125,7 +126,11 @@ export function useCreateInvoice() {
         .select()
         .single();
 
-      if (invoiceError) throw invoiceError;
+      if (invoiceError) {
+        console.error('useCreateInvoice: Supabase invoice insert error:', invoiceError);
+        throw invoiceError;
+      }
+      console.log('useCreateInvoice: Invoice created successfully:', invoiceData);
 
       // Insert items
       const itemsToInsert = invoice.items.map(item => ({

@@ -10,6 +10,7 @@ interface LeadFilters {
   source?: LeadSource;
   regionId?: string;
   assignedUserId?: string;
+  salespersonId?: string;
   search?: string;
 }
 
@@ -27,12 +28,17 @@ export function useLeads(filters?: LeadFilters) {
         .select('*')
         .order('created_at', { ascending: false });
 
-      console.log('useLeads: Supabase response', { dbData, error });
-
       if (error) {
-        console.error('useLeads: Error fetching leads', error);
+        console.error('useLeads: Error fetching leads from Supabase', {
+          error,
+          code: error.code,
+          message: error.message,
+          hint: error.hint
+        });
         throw error;
       }
+      
+      console.log('useLeads: Successfully fetched', dbData?.length, 'leads');
       data = dbData as Lead[];
 
       if (filters?.status) {
@@ -46,6 +52,9 @@ export function useLeads(filters?: LeadFilters) {
       }
       if (filters?.assignedUserId) {
         data = data.filter(l => l.assigned_user_id === filters.assignedUserId);
+      }
+      if (filters?.salespersonId) {
+        data = data.filter(l => l.salesperson_id === filters.salespersonId);
       }
       if (filters?.search) {
         const search = filters.search.toLowerCase();
@@ -100,7 +109,9 @@ export function useCreateLead() {
           region_id: lead.region_id,
           status: lead.status || 'new',
           source_type: lead.source_type || 'manual',
+          priority: lead.priority || 'none',
           notes: lead.notes,
+          photo_url: lead.photo_url,
           assigned_user_id: lead.assigned_user_id || user?.id,
           created_by: user?.id,
         })
@@ -108,9 +119,16 @@ export function useCreateLead() {
         .single();
 
       if (error) {
-        console.error('Supabase create lead error:', error);
+        console.error('Supabase create lead error:', {
+          error,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         throw error;
       }
+      
+      console.log('Lead created successfully:', data.id);
       return data;
     },
     onSuccess: () => {
@@ -145,13 +163,30 @@ export function useUpdateLead() {
       }
       return data;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['leads', data.id] });
+    onMutate: async (newLead) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
+      
+      if (previousLeads) {
+        queryClient.setQueryData(['leads'], (old: Lead[] | undefined) => 
+          old?.map((lead) => (lead.id === newLead.id ? { ...lead, ...newLead } : lead))
+        );
+      }
+      
+      return { previousLeads };
     },
-    onError: (error) => {
+    onError: (error, newLead, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
       console.error('Mutation update lead error:', error);
-    }
+    },
+    onSettled: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      if (data?.id) {
+        queryClient.invalidateQueries({ queryKey: ['leads', data.id] });
+      }
+    },
   });
 }
 
@@ -254,7 +289,24 @@ export function useUpdateLeadStatus() {
 
       return data;
     },
-    onSuccess: () => {
+    onMutate: async ({ leadId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
+      
+      if (previousLeads) {
+        queryClient.setQueryData(['leads'], (old: Lead[] | undefined) => 
+          old?.map((lead) => (lead.id === leadId ? { ...lead, status } : lead))
+        );
+      }
+      
+      return { previousLeads };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['activities'] });
     },
@@ -342,6 +394,7 @@ export function useConvertLead() {
           region_id: lead.region_id,
           assigned_user_id: lead.assigned_user_id,
           notes: lead.notes,
+          photo_url: lead.photo_url,
           status: 'active', // New clients start as active
           converted_from_lead_id: lead.id,
           created_by: user?.id,
@@ -418,6 +471,108 @@ export function useConvertLead() {
     },
     onError: (error) => {
       console.error('Lead conversion error:', error);
+    },
+  });
+}
+
+export function useAssignClientToLead() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ leadId, clientId }: { leadId: string; clientId: string | null }) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ client_id: clientId, updated_at: new Date().toISOString() })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log activity
+      await supabase.from('activities').insert({
+        entity_type: 'lead',
+        entity_id: leadId,
+        activity_type: 'note',
+        title: clientId ? 'Lead priradený ku klientovi' : 'Lead odpojený od klienta',
+        description: clientId ? 'Lead bol úspešne priradený k existujúcemu klientovi' : 'Priradenie ku klientovi bolo zrušené',
+        created_by: user?.id,
+      });
+
+      return data;
+    },
+    onMutate: async ({ leadId, clientId }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
+      
+      if (previousLeads) {
+        queryClient.setQueryData(['leads'], (old: Lead[] | undefined) => 
+          old?.map((lead) => (lead.id === leadId ? { ...lead, client_id: clientId } : lead))
+        );
+      }
+      
+      return { previousLeads };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+    },
+  });
+}
+
+export function useAssignSalespersonToLead() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ leadId, salespersonId }: { leadId: string; salespersonId: string | null }) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ salesperson_id: salespersonId, updated_at: new Date().toISOString() })
+        .eq('id', leadId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log activity
+      await supabase.from('activities').insert({
+        entity_type: 'lead',
+        entity_id: leadId,
+        activity_type: 'note',
+        title: salespersonId ? 'Lead priradený obchodníkovi' : 'Lead odpojený od obchodníka',
+        description: salespersonId ? 'Lead bol úspešne priradený obchodníkovi' : 'Priradenie obchodníkovi bolo zrušené',
+        created_by: user?.id,
+      });
+
+      return data;
+    },
+    onMutate: async ({ leadId, salespersonId }) => {
+      await queryClient.cancelQueries({ queryKey: ['leads'] });
+      const previousLeads = queryClient.getQueryData<Lead[]>(['leads']);
+      
+      if (previousLeads) {
+        queryClient.setQueryData(['leads'], (old: Lead[] | undefined) => 
+          old?.map((lead) => (lead.id === leadId ? { ...lead, salesperson_id: salespersonId } : lead))
+        );
+      }
+      
+      return { previousLeads };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousLeads) {
+        queryClient.setQueryData(['leads'], context.previousLeads);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
     },
   });
 }

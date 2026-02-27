@@ -197,12 +197,6 @@ export function CreateInvoiceDialog({ open: controlledOpen, onOpenChange: setCon
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button className="gradient-primary shadow-glow hover:shadow-lg transition-all">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nová faktúra
-                </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Vytvoriť novú faktúru</DialogTitle>

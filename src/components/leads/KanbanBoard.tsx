@@ -13,8 +13,9 @@ const LEAD_STATUSES: Array<{ value: LeadStatus; label: string; color: string }> 
     { value: 'new', label: 'Nový', color: 'blue' },
     { value: 'contacted', label: 'Kontaktovaný', color: 'purple' },
     { value: 'offer', label: 'Ponuka', color: 'orange' },
-    { value: 'won', label: 'Úspešný', color: 'emerald' },
+    { value: 'won', label: 'Vyhraný', color: 'emerald' },
     { value: 'lost', label: 'Stratený', color: 'red' },
+    { value: 'waiting', label: 'Čaká sa', color: 'zinc' },
 ];
 
 const statusLabels: Record<LeadStatus, string> = {
@@ -44,7 +45,7 @@ export function KanbanBoard() {
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8, // 8px movement required before drag starts
+                distance: 8,
             },
         })
     );
@@ -58,72 +59,31 @@ export function KanbanBoard() {
         const { active, over } = event;
         setActiveLead(null);
 
-        // CRITICAL DEBUG: Log what we're getting
-        console.log('🔍 DragEnd Debug:', {
-            activeId: active.id,
-            activeType: typeof active.id,
-            overId: over?.id,
-            overType: typeof over?.id,
-            overData: over?.data,
-        });
-
         if (!over || active.id === over.id) return;
 
         const leadId = active.id as string;
         let newStatus = over.id as string;
 
-        // CRITICAL FIX: If over.id is a UUID (dropping on another card), 
-        // find that card's status instead
+        // If dropped on another card, find that card's column
         if (newStatus.length > 10 && newStatus.includes('-')) {
-            console.log('⚠️ Detected UUID as drop target, looking up column status...');
             const targetLead = leads.find(l => l.id === newStatus);
             if (targetLead) {
                 newStatus = targetLead.status;
-                console.log(`✅ Mapped UUID to status: ${newStatus}`);
             } else {
-                console.error('❌ Could not find lead with UUID:', newStatus);
-                toast.error('Chyba: Neplatný cieľ presunu');
                 return;
             }
         }
 
-        // Find the lead being moved
         const lead = leads.find(l => l.id === leadId);
-        if (!lead) return;
+        if (!lead || lead.status === newStatus) return;
 
-        // Don't move if already in that column
-        if (lead.status === newStatus) {
-            console.log('ℹ️ Lead already in this column, skipping');
-            return;
-        }
-
-        // Debug logging
-        const columnLeadCount = leads.filter(l => l.status === newStatus).length;
-        console.log('🎯 Dragging lead to column:', {
-            leadId,
-            leadName: lead.contact_name,
-            oldStatus: lead.status,
-            newStatus,
-            newStatusIsUUID: newStatus.length > 10 && newStatus.includes('-'),
-            currentLeadsInColumn: columnLeadCount,
-        });
-
-        // Update lead status
         updateLeadStatus.mutate(
             { leadId, status: newStatus as LeadStatus },
             {
                 onSuccess: () => {
-                    console.log('✅ Status update successful');
-                    toast.success(`Lead presunutý do stĺpca "${LEAD_STATUSES.find(s => s.value === newStatus)?.label}"`);
+                    toast.success(`Lead presunutý do "${statusLabels[newStatus as LeadStatus]}"`);
                 },
                 onError: (error: any) => {
-                    console.error('❌ Failed to update lead status:', {
-                        error,
-                        message: error?.message,
-                        code: error?.code,
-                        details: error?.details,
-                        hint: error?.hint,
-                    });
                     toast.error(`Nepodarilo sa: ${error?.message || 'Neznáma chyba'}`);
                 },
             }
@@ -147,7 +107,6 @@ export function KanbanBoard() {
         );
     }
 
-    // Group leads by status
     const leadsByStatus = LEAD_STATUSES.reduce((acc, status) => {
         acc[status.value] = leads.filter(lead => lead.status === status.value);
         return acc;
@@ -161,7 +120,7 @@ export function KanbanBoard() {
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
             >
-                <div className="flex gap-1 overflow-x-auto pt-4 pr-4">
+                <div className="flex gap-3 overflow-x-auto pt-4 pr-4 h-[calc(100vh-250px)] scrollbar-hide">
                     {LEAD_STATUSES.map((status) => (
                         <KanbanColumn
                             key={status.value}

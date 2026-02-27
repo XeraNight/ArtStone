@@ -2,7 +2,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Mail, Phone, MapPin, Users, FileText, TrendingUp } from 'lucide-react';
+import { Mail, Phone, MapPin, Users, FileText, TrendingUp, Loader2 } from 'lucide-react';
+import { useUpdateSalespersonStatus } from '@/hooks/useSalespeople';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface SalespersonProfileDialogProps {
     salesperson: any | null;
@@ -11,7 +14,19 @@ interface SalespersonProfileDialogProps {
 }
 
 export function SalespersonProfileDialog({ salesperson, open, onOpenChange }: SalespersonProfileDialogProps) {
+    const updateStatus = useUpdateSalespersonStatus();
+
     if (!salesperson) return null;
+
+    const handleStatusToggle = async (is_active: boolean) => {
+        try {
+            await updateStatus.mutateAsync({ id: salesperson.id, is_active });
+            toast.success(`Obchodník je teraz ${is_active ? 'aktívny' : 'neaktívny'}`);
+        } catch (error) {
+            toast.error('Nepodarilo sa zmeniť status');
+            console.error(error);
+        }
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -37,9 +52,29 @@ export function SalespersonProfileDialog({ salesperson, open, onOpenChange }: Sa
                         <div>
                             <h3 className="text-xl font-semibold text-white">{salesperson.full_name}</h3>
                             <p className="text-sm text-gray-400">{salesperson.region?.name || 'Neurčený región'}</p>
-                            <Badge variant={salesperson.is_active ? 'default' : 'secondary'} className="mt-2">
-                                {salesperson.is_active ? 'Aktívny' : 'Neaktívny'}
-                            </Badge>
+                            
+                            <div className="flex gap-2 mt-4">
+                                <Button 
+                                    size="sm"
+                                    variant={salesperson.is_active ? "default" : "outline"}
+                                    className={salesperson.is_active ? "bg-green-600 hover:bg-green-700 text-white" : "border-zinc-800 text-zinc-500"}
+                                    onClick={() => handleStatusToggle(true)}
+                                    disabled={updateStatus.isPending}
+                                >
+                                    {updateStatus.isPending && salesperson.is_active ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
+                                    Aktívny
+                                </Button>
+                                <Button 
+                                    size="sm"
+                                    variant={!salesperson.is_active ? "default" : "outline"}
+                                    className={!salesperson.is_active ? "bg-zinc-700 hover:bg-zinc-600 text-white" : "border-zinc-800 text-zinc-500"}
+                                    onClick={() => handleStatusToggle(false)}
+                                    disabled={updateStatus.isPending}
+                                >
+                                    {updateStatus.isPending && !salesperson.is_active ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : null}
+                                    Neaktívny
+                                </Button>
+                            </div>
                         </div>
                     </div>
 

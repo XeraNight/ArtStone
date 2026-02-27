@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { InventoryItem } from "@/types/database";
 import { useInventoryItems, useInventoryCategories, useCreateInventoryItem, useUpdateInventoryItem, useDeleteInventoryItem, useAdjustStock } from "@/hooks/useInventory";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -29,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 
 export function StockClientView() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
   const [showLowStock, setShowLowStock] = useState(false);
@@ -385,7 +387,7 @@ export function StockClientView() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell className="px-6 py-4 cursor-pointer" onClick={() => router.push(`/app/stock/${item.id}`)}>
                         <p className="text-sm font-bold text-white group-hover:text-primary transition-colors">{item.name}</p>
                         <p className="text-xs text-gray-500">SKU: {item.sku || "N/A"}</p>
                       </TableCell>

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useSidebar } from "./AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { RoleBadge } from "@/components/shared/RoleBadge";
 
 type UserRole = "admin" | "manager" | "sales" | "accountant" | "warehouse" | "client";
 
@@ -38,7 +39,14 @@ const navItems: NavItem[] = [
     group: "main"
   },
   {
-    title: "Leady a klienti",
+    title: "Leady",
+    href: "/app/leads",
+    icon: Users,
+    roles: ["admin", "manager", "sales"],
+    group: "main"
+  },
+  {
+    title: "Klienti",
     href: "/app/clients",
     icon: Users,
     roles: ["admin", "manager", "sales"],
@@ -219,19 +227,42 @@ export function AppSidebar() {
       </nav>
 
       {/* User profile fixed at bottom */}
-      <div className="p-4 border-t border-border-dark bg-[#0F0F0F] flex-shrink-0">
-        <div className={cn("flex items-center", collapsed && "justify-center flex-col gap-2")}>
-          <Avatar className="h-9 w-9 rounded-full ring-2 ring-border-dark">
-            <AvatarFallback className="bg-primary/10 text-primary font-bold">{userInitials}</AvatarFallback>
-          </Avatar>
-          {!collapsed && (
-            <div className="ml-3 flex-1 min-w-0">
-              <div className="text-sm font-medium text-white truncate">{userName}</div>
-              <div className="text-xs font-medium text-gray-500 hover:text-primary cursor-pointer transition-colors" onClick={handleLogout}>Odhlásiť sa</div>
+      <div className="p-4 border-t border-border-dark bg-[#0F0F0F] flex-shrink-0 pb-8">
+        <div className={cn(
+          "relative p-4 rounded-xl bg-surface-dark border border-border-dark group transition-all duration-300 min-h-[90px] flex flex-col justify-center mb-2",
+          collapsed ? "items-center gap-2" : ""
+        )}>
+          {!collapsed && mounted && user?.role && (
+            <div className="absolute -top-2 -right-1 z-10 transition-all">
+              <RoleBadge role={user.role} className="text-[9px] px-2 h-4 shadow-md bg-[#0F0F0F]" />
             </div>
           )}
+          
+          <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "gap-3")}>
+            <Avatar className="h-10 w-10 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+              <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                {mounted ? userInitials : "?"}
+              </AvatarFallback>
+            </Avatar>
+            
+            {!collapsed && mounted && (
+              <div className="flex-1 min-w-0 pr-8">
+                <div className="text-sm font-bold text-white truncate leading-tight mb-1">{userName}</div>
+                <div 
+                  className="text-[10px] font-bold text-gray-500 hover:text-primary cursor-pointer transition-colors uppercase tracking-widest flex items-center gap-1 group/logout" 
+                  onClick={handleLogout}
+                >
+                  Odhlásiť sa
+                  <LogOut className="h-3 w-3 group-hover/logout:translate-x-0.5 transition-transform" />
+                </div>
+              </div>
+            )}
+          </div>
+
           {collapsed && (
-            <LogOut className="h-4 w-4 text-gray-500 hover:text-primary cursor-pointer mt-2" onClick={handleLogout}/>
+            <div className="mt-2 w-full flex justify-center border-t border-border-dark pt-2">
+              <LogOut className="h-4 w-4 text-gray-500 hover:text-primary cursor-pointer transition-colors" onClick={handleLogout}/>
+            </div>
           )}
         </div>
       </div>

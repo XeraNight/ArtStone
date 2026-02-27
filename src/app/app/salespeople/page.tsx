@@ -64,7 +64,10 @@ export default function SalespeoplePage() {
                     <p className="text-gray-400">Správa a štatistiky obchodných zástupcov</p>
                 </div>
                 {isAdmin && (
-                    <Button className="w-full md:w-auto">
+                    <Button className="w-full md:w-auto" onClick={() => {
+                        setSelectedSalesperson(null);
+                        setProfileOpen(true);
+                    }}>
                         <UserPlus className="h-4 w-4 mr-2" />
                         Pridať obchodníka
                     </Button>

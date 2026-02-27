@@ -1,9 +1,9 @@
 "use client";
-import React from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { KanbanCard } from './KanbanCard';
 import type { Lead } from '@/types/database';
+import { cn } from '@/lib/utils';
 
 interface KanbanColumnProps {
     status: string;
@@ -13,53 +13,65 @@ interface KanbanColumnProps {
     onCardClick: (lead: Lead) => void;
 }
 
-const STATUS_CONFIG: Record<string, { borderColor: string; badgeColor: string }> = {
-    new: { borderColor: 'border-l-blue-500', badgeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-    contacted: { borderColor: 'border-l-purple-500', badgeColor: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
-    offer: { borderColor: 'border-l-orange-500', badgeColor: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
-    won: { borderColor: 'border-l-emerald-500', badgeColor: 'bg-green-500/20 text-green-400 border-green-500/30' },
-    lost: { borderColor: 'border-l-red-500', badgeColor: 'bg-red-500/20 text-red-500 border-red-500/30' },
-    waiting: { borderColor: 'border-l-yellow-500', badgeColor: 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30' },
+const colorMap: Record<string, string> = {
+    blue: 'border-blue-500/20 bg-blue-500/5 text-blue-500',
+    purple: 'border-purple-500/20 bg-purple-500/5 text-purple-500',
+    orange: 'border-orange-500/20 bg-orange-500/5 text-orange-500',
+    emerald: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-500',
+    red: 'border-red-500/20 bg-red-500/5 text-red-500',
+    zinc: 'border-zinc-500/20 bg-zinc-500/5 text-zinc-500',
 };
 
-export function KanbanColumn({ status, label, leads, onCardClick }: KanbanColumnProps) {
+const dotMap: Record<string, string> = {
+    blue: 'bg-blue-500',
+    purple: 'bg-purple-500',
+    orange: 'bg-orange-500',
+    emerald: 'bg-emerald-500',
+    red: 'bg-red-500',
+    zinc: 'bg-zinc-500',
+};
+
+export function KanbanColumn({ status, label, color, leads, onCardClick }: KanbanColumnProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: status,
     });
 
-    const config = STATUS_CONFIG[status] || STATUS_CONFIG.new;
-
     return (
-        <div className="flex-shrink-0 w-80 flex flex-col h-full bg-[#0a0a0a] border border-[#1f1f1f] shadow-sm">
-            {/* Column Header */}
-            <div className={`p-4 border-b border-[#1f1f1f] flex items-center justify-between border-l-4 ${config.borderColor} bg-zinc-900/50`}>
-                <h3 className="text-sm font-bold uppercase tracking-widest text-white">
-                    {label}
-                </h3>
-                <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${config.badgeColor}`}>
-                    {leads.length}
-                </span>
+        <div className="flex-shrink-0 w-80 flex flex-col h-full group/column">
+            <div className={cn(
+                "mb-3 px-4 py-3 rounded-xl border flex items-center justify-between transition-all duration-300",
+                colorMap[color] || colorMap.zinc,
+                isOver && "ring-2 ring-primary ring-offset-2 ring-offset-[#0a0a0a] scale-[1.02]"
+            )}>
+                <div className="flex items-center gap-3">
+                    <div className={cn("h-1.5 w-1.5 rounded-full shadow-[0_0_8px_rgba(255,102,0,0.5)]", dotMap[color] || dotMap.zinc)}></div>
+                    <h3 className="text-[10px] font-bold uppercase tracking-[0.2em]">{label}</h3>
+                </div>
+                <span className="text-[10px] font-mono opacity-60">({leads.length})</span>
             </div>
 
-            {/* Column Body / Drop Zone */}
-            <div 
-                ref={setNodeRef} 
-                className={`flex-1 p-3 overflow-y-auto space-y-3 transition-colors ${isOver ? 'bg-primary/5' : 'bg-transparent'}`}
+            <div
+                ref={setNodeRef}
+                className={cn(
+                    "flex-1 overflow-y-auto space-y-3 p-2 rounded-2xl transition-colors duration-300 custom-scrollbar pb-10",
+                    isOver ? "bg-primary/5 border-2 border-dashed border-primary/20" : "bg-transparent"
+                )}
             >
-                <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
-                    {leads.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-32 text-zinc-600 border border-dashed border-zinc-800 rounded-sm">
-                            <span className="material-symbols-outlined text-2xl mb-1">drag_indicator</span>
-                            <span className="text-xs font-medium uppercase tracking-wider">Presuňte sem</span>
+                <SortableContext
+                    items={leads.map(l => l.id)}
+                    strategy={verticalListSortingStrategy}
+                >
+                    {leads.map((lead) => (
+                        <KanbanCard 
+                            key={lead.id} 
+                            lead={lead} 
+                            onClick={() => onCardClick(lead)} 
+                        />
+                    ))}
+                    {leads.length === 0 && !isOver && (
+                        <div className="h-20 border-2 border-dashed border-zinc-900 rounded-xl flex items-center justify-center opacity-40 group-hover/column:opacity-100 transition-opacity">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Prázdne</p>
                         </div>
-                    ) : (
-                        leads.map((lead) => (
-                            <KanbanCard
-                                key={lead.id}
-                                lead={lead}
-                                onClick={() => onCardClick(lead)}
-                            />
-                        ))
                     )}
                 </SortableContext>
             </div>

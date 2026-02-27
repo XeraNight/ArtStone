@@ -2,11 +2,22 @@
 
 import { 
   Users, Building2, Package, CheckCircle, Clock, AlertTriangle, 
-  ArrowRight, Plus, Bell, Calendar
+  ArrowRight, Plus, Bell, Calendar, Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
 
 export function ManagerDashboard() {
+  const { data: stats, isLoading } = useDashboardStats();
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       {/* Header handled by parent, here we just show the content grids */}
@@ -18,29 +29,32 @@ export function ManagerDashboard() {
         <div className="bg-surface-card rounded-xl shadow-lg border border-border-dark p-6 relative overflow-hidden group hover:border-primary/30 transition-all duration-300">
           <div className="flex justify-between items-start z-10 relative">
             <div>
-              <p className="text-sm font-medium text-text-secondary uppercase tracking-wide">Výkon tímu</p>
-              <h3 className="text-3xl font-bold text-white mt-1">94%</h3>
+              <p className="text-sm font-medium text-text-secondary uppercase tracking-wide">Miera konverzie</p>
+              <h3 className="text-3xl font-bold text-white mt-1">{stats?.conversionRate || 0}%</h3>
             </div>
             <div className="p-2 bg-primary/10 rounded-lg border border-primary/10">
               <Users className="w-6 h-6 text-primary" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm z-10 relative">
-            <span className="text-green-400 font-medium flex items-center">
+            <span className={cn(
+              "font-medium flex items-center",
+              (stats?.conversionChange || 0) >= 0 ? "text-green-400" : "text-red-400"
+            )}>
               <CheckCircle className="w-4 h-4 mr-1" />
-              Všetky úlohy
+              {stats?.conversionChange || 0}%
             </span>
-            <span className="text-gray-500 ml-2">plnené v termíne</span>
+            <span className="text-gray-500 ml-2">oproti minulému mesiacu</span>
           </div>
           <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-primary/5 rounded-full group-hover:bg-primary/10 transition-colors duration-500"></div>
         </div>
 
-        {/* Active Projects */}
+        {/* Active Projects (Using Won Leads as proxy for projects if not defined) */}
         <div className="bg-surface-card rounded-xl shadow-lg border border-border-dark p-6 relative overflow-hidden group hover:border-blue-500/30 transition-all duration-300">
           <div className="flex justify-between items-start z-10 relative">
             <div>
-              <p className="text-sm font-medium text-text-secondary uppercase tracking-wide">Aktívne projekty</p>
-              <h3 className="text-3xl font-bold text-white mt-1">8</h3>
+              <p className="text-sm font-medium text-text-secondary uppercase tracking-wide">Aktuálni klienti</p>
+              <h3 className="text-3xl font-bold text-white mt-1">{stats?.clients?.total || 0}</h3>
             </div>
             <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/10">
               <Building2 className="w-6 h-6 text-blue-400" />
@@ -49,9 +63,9 @@ export function ManagerDashboard() {
           <div className="mt-4 flex items-center text-sm z-10 relative">
             <span className="text-blue-400 font-medium flex items-center">
               <Clock className="w-4 h-4 mr-1" />
-              2 projekty
+              {stats?.clients?.activeChange || 0}%
             </span>
-            <span className="text-gray-500 ml-2">blízko dokončenia</span>
+            <span className="text-gray-500 ml-2">noví tento mesiac</span>
           </div>
           <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-blue-500/5 rounded-full group-hover:bg-blue-500/10 transition-colors duration-500"></div>
         </div>
@@ -61,18 +75,23 @@ export function ManagerDashboard() {
           <div className="flex justify-between items-start z-10 relative">
             <div>
               <p className="text-sm font-medium text-text-secondary uppercase tracking-wide">Stav skladu</p>
-              <h3 className="text-3xl font-bold text-white mt-1">Upozornenie</h3>
+              <h3 className="text-3xl font-bold text-white mt-1">
+                {stats?.lowStockItems === 0 ? "V poriadku" : "Upozornenie"}
+              </h3>
             </div>
             <div className="p-2 bg-amber-600/10 rounded-lg border border-amber-600/10">
               <Package className="w-6 h-6 text-amber-500" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm z-10 relative">
-            <span className="text-amber-500 font-medium flex items-center">
+            <span className={cn(
+              "font-medium flex items-center",
+              stats?.lowStockItems === 0 ? "text-green-400" : "text-amber-500"
+            )}>
               <AlertTriangle className="w-4 h-4 mr-1" />
-              Nízke zásoby
+              {stats?.lowStockItems || 0} položiek
             </span>
-            <span className="text-gray-500 ml-2">pre 2 materiály</span>
+            <span className="text-gray-500 ml-2">pod limitom</span>
           </div>
           <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-amber-600/5 rounded-full group-hover:bg-amber-600/10 transition-colors duration-500"></div>
         </div>

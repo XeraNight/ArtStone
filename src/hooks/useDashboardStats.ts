@@ -355,3 +355,28 @@ export function useRegionStats() {
     enabled: !!user && user.role === 'admin',
   });
 }
+
+export function useRecentActivities(limit = 5) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ['recent-activities', limit, user?.id],
+    queryFn: async () => {
+      let query = supabase
+        .from('activities')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (user?.role === 'sales') {
+        query = query.eq('created_by', user.id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+    refetchInterval: 30000, 
+  });
+}

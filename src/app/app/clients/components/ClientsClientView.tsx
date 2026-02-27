@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { CreateClientDialog } from "@/components/clients/CreateClientDialog";
 import { EditClientDialog } from "@/components/clients/EditClientDialog";
 import { ClientDetailDialog } from "@/components/clients/ClientDetailDialog";
@@ -11,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -22,9 +20,13 @@ import {
 import { useClients } from "@/hooks/useClients";
 import { useDeleteClient } from "@/hooks/useClients";
 import { useRegions } from "@/hooks/useRegions";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { CRMNavigation } from "@/components/shared/CRMNavigation";
 import {
   Plus,
   Search,
@@ -65,21 +67,37 @@ const statusVariants: Record<
 };
 
 export function ClientsClientView() {
+  const { user } = useAuth();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"list" | "detail">("list");
+  
+  // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 500);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
+
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [createClientOpen, setCreateClientOpen] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [createQuoteOpen, setCreateQuoteOpen] = useState(false);
-  const [quoteClientId, setQuoteClientId] = useState<string>("");
-  const [activityOpen, setActivityOpen] = useState(false);
-  const [activityType, setActivityType] = useState<"call" | "email" | "note">(
-    "note",
-  );
+
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const supabaseClient = createClient();
+    const channel = supabaseClient
+      .channel('public:clients')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, (payload) => {
+        console.log('Realtime update for clients:', payload);
+        queryClient.invalidateQueries({ queryKey: ['clients'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabaseClient.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { data: clients = [], isLoading, isError } = useClients({
     search: debouncedSearch,
@@ -88,16 +106,12 @@ export function ClientsClientView() {
   const { data: regions = [] } = useRegions();
   const deleteClient = useDeleteClient();
 
-  const isAdmin = true; // Temporary mock, ideally pass as prop or use context if ported
+  const currentClient = useMemo(() => {
+    if (!selectedClient) return null;
+    return clients.find(c => c.id === selectedClient.id) || selectedClient;
+  }, [clients, selectedClient]);
 
-  const filteredClients = useMemo(() => {
-    if (!clients) return [];
-
-    // The useClients hook now handles filtering, so we just return the data
-    // If the backend filtering is not comprehensive, client-side filtering can be added here.
-    // For now, assuming useClients returns already filtered data based on debouncedSearch and statusFilter.
-    return clients;
-  }, [clients]);
+  const isAdmin = user?.role === "admin" || user?.role === "správca";
 
   const getRegionName = (regionId: string | null) => {
     if (!regionId) return "Neurčený";
@@ -112,344 +126,180 @@ export function ClientsClientView() {
     }).format(value || 0);
   };
 
-  const handleDelete = async (clientId: string) => {
-    if (!confirm("Naozaj chcete vymazať tohto klienta?")) return;
-    try {
-      await deleteClient.mutateAsync(clientId);
-      toast.success("Klient bol vymazaný");
-    } catch {
-      toast.error("Nepodarilo sa vymazať klienta");
-    }
-  };
-
   const handleShowDetail = (client: Client) => {
     setSelectedClient(client);
-    setDetailOpen(true);
+    setActiveTab("detail");
   };
-
-  const handleQuickActivity = (
-    client: Client,
-    type: "call" | "email" | "note",
-    e: React.MouseEvent,
-  ) => {
-    e.stopPropagation();
-    setSelectedClient(client);
-    setActivityType(type);
-    setActivityOpen(true);
-  };
-
-  if (isError) {
-    return (
-      <div className="p-8 text-center text-destructive">
-        <p>Nepodarilo sa načítať zoznam klientov.</p>
-        <Button
-          variant="outline"
-          onClick={() => window.location.reload()}
-          className="mt-4"
-        >
-          Skúsiť znova
-        </Button>
-      </div>
-    );
-  }
 
   return (
-    <>
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="flex flex-1 gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Hľadať klientov..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+    <div className="flex flex-col min-h-screen bg-white dark:bg-[#030303]">
+      <CRMNavigation />
+
+      <main className="p-6 sm:p-10 max-w-[1920px] mx-auto w-full">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight uppercase">
+              Klienti
+            </h2>
+            <p className="text-sm text-zinc-500 font-medium">Správa aktívnych a potenciálnych klientov</p>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Všetky statusy</SelectItem>
-              {Object.entries(statusLabels).map(([key, label]) => (
-                <SelectItem key={key} value={key}>
-                  {label}
-                </SelectItem>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+            <div className="relative group flex-1 sm:w-80">
+              <Search className="absolute left-3 top-3 text-zinc-500 h-4 w-4 transition-colors group-focus-within:text-primary" />
+              <input 
+                className="w-full bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white pl-10 pr-4 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all rounded-xl" 
+                placeholder="Hľadať klientov..." 
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            
+            <button
+              onClick={() => setCreateClientOpen(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-black font-bold hover:bg-primary-hover transition-all active:scale-95 shadow-[0_0_20px_rgba(255,102,0,0.15)] uppercase tracking-widest text-[10px] rounded-xl"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Pridať klienta</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Content Section */}
+        <div className="animate-fade-in">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <div key={i} className="h-64 bg-slate-100 dark:bg-zinc-900/30 animate-pulse rounded-2xl border border-zinc-800/50" />
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex gap-2">
-          <div className="flex border border-border rounded-lg p-1">
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon-sm"
-              onClick={() => setViewMode("grid")}
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon-sm"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-          <Button onClick={() => setCreateClientOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Pridať klienta
-          </Button>
-          <CreateClientDialog
-            open={createClientOpen}
-            onOpenChange={setCreateClientOpen}
-          />
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div
-          className={cn(
-            "grid gap-4 mt-6",
-            viewMode === "grid"
-              ? "md:grid-cols-2 lg:grid-cols-3"
-              : "grid-cols-1",
-          )}
-        >
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-[220px]" />
-          ))}
-        </div>
-      ) : (
-        <div
-          className={cn(
-            "grid gap-4 mt-6",
-            viewMode === "grid"
-              ? "md:grid-cols-2 lg:grid-cols-3"
-              : "grid-cols-1",
-          )}
-        >
-          {filteredClients.map((client) => (
-            <Card
-              key={client.id}
-              className="shadow-soft hover:shadow-md transition-all duration-200 cursor-pointer group"
-            >
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-12 w-12 bg-primary/10">
-                      <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                        {(client.contact_name || "?")
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .substring(0, 2)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-semibold text-foreground">
-                        {client.contact_name}
-                      </h3>
-                      {client.company_name && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <Building2 className="h-3 w-3" />
-                          {client.company_name}
-                        </p>
-                      )}
-                    </div>
+            </div>
+          ) : activeTab === "detail" && currentClient ? (
+            <div className="bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-zinc-800 rounded-2xl p-8 shadow-2xl">
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 border-b border-zinc-800 pb-8">
+                  <div className="flex items-center gap-6">
+                     <Avatar className="h-20 w-20 rounded-2xl border border-zinc-800">
+                           {currentClient.photo_url ? (
+                              <AvatarImage src={currentClient.photo_url} className="object-cover" />
+                           ) : null}
+                            <AvatarFallback className="bg-primary/10 text-primary text-3xl font-bold rounded-2xl">
+                               {currentClient.contact_name?.[0] || "?"}
+                            </AvatarFallback>
+                         </Avatar>
+                     <div>
+                        <h3 className="text-2xl font-bold text-white mb-1">{currentClient.contact_name}</h3>
+                        <div className="flex items-center gap-4">
+                           <span className="text-xs text-zinc-500 uppercase tracking-widest font-bold">{currentClient.company_name || "Súkromná osoba"}</span>
+                           <span className="h-1 w-1 bg-zinc-700 rounded-full"></span>
+                           <span className="text-xs text-primary font-mono">{currentClient.status}</span>
+                        </div>
+                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {client.phone && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) =>
-                            handleQuickActivity(client, "call", e)
-                          }
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          title="Zavolať"
-                        >
-                          <Phone className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      {client.email && (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) =>
-                            handleQuickActivity(client, "email", e)
-                          }
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          title="Poslať email"
-                        >
-                          <Mail className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(e) => handleQuickActivity(client, "note", e)}
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        title="Pridať poznámku"
-                      >
-                        <StickyNote className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleShowDetail(client)}
-                        >
-                          Zobraziť detail
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setQuoteClientId(client.id);
-                            setCreateQuoteOpen(true);
-                          }}
-                        >
-                          Vytvoriť ponuku
-                        </DropdownMenuItem>
-                        {isAdmin && (
-                          <>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditingClient(client);
-                                setEditOpen(true);
-                              }}
-                            >
-                              Upraviť
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => handleDelete(client.id)}
-                            >
-                              Vymazať
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  <div className="flex gap-3">
+                     <button 
+                       onClick={() => setEditOpen(true)}
+                       className="px-6 py-2.5 bg-zinc-900 border border-zinc-800 text-white text-xs font-bold uppercase tracking-widest rounded-lg hover:bg-zinc-800 transition-colors"
+                     >
+                       Upraviť
+                     </button>
                   </div>
+               </div>
+               
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                  <div className="lg:col-span-2 space-y-10">
+                     <div>
+                        <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4">Kontaktné informácie</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-zinc-950/50 p-6 rounded-xl border border-zinc-900">
+                           <div className="space-y-1">
+                              <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Email</p>
+                              <p className="text-sm text-zinc-300">{currentClient.email || "Neuvedený"}</p>
+                           </div>
+                           <div className="space-y-1">
+                              <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Telefón</p>
+                              <p className="text-sm text-zinc-300">{currentClient.phone || "Neuvedený"}</p>
+                           </div>
+                           <div className="space-y-1">
+                              <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Adresa</p>
+                              <p className="text-sm text-zinc-300">{currentClient.address || "Neuvedená"}</p>
+                           </div>
+                           <div className="space-y-1">
+                              <p className="text-[10px] text-zinc-600 uppercase font-bold tracking-widest">Región</p>
+                              <p className="text-sm text-zinc-300">{getRegionName(currentClient.region_id)}</p>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                  
+                  <div className="space-y-8">
+                     <div className="bg-zinc-950 p-6 rounded-xl border border-zinc-900 shadow-inner text-center">
+                        <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mb-4">Celková hodnota</h4>
+                        <p className="text-3xl font-bold text-primary">{formatCurrency(currentClient.total_value)}</p>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {clients.length === 0 ? (
+                <div className="col-span-full p-20 text-center">
+                   <div className="flex flex-col items-center gap-4">
+                       <Users className="h-12 w-12 text-zinc-800" />
+                       <p className="text-zinc-600 font-medium">Nenašli sa žiadni klienti</p>
+                   </div>
                 </div>
-
-                <div className="space-y-2 text-sm">
-                  {client.email && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Mail className="h-4 w-4" />
-                      <span className="truncate">{client.email}</span>
-                    </div>
-                  )}
-                  {client.phone && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                      <span>{client.phone}</span>
-                    </div>
-                  )}
-                  {client.address && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span className="truncate">{client.address}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-                  <Badge
-                    variant={statusVariants[client.status as ClientStatus]}
+              ) : (
+                clients.map((client) => (
+                  <div 
+                    key={client.id}
+                    onClick={() => handleShowDetail(client)}
+                    className="group bg-white dark:bg-[#0a0a0a] border border-slate-200 dark:border-zinc-800 p-6 rounded-2xl hover:border-primary/50 transition-all cursor-pointer shadow-soft hover:shadow-2xl hover:-translate-y-1"
                   >
-                    {statusLabels[client.status as ClientStatus]}
-                  </Badge>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">
-                      Celková hodnota
-                    </p>
-                    <p className="font-semibold text-foreground">
-                      {formatCurrency(client.total_value)}
-                    </p>
+                      <div className="flex items-start justify-between mb-6">
+                         <Avatar className="h-12 w-12 rounded-xl border border-zinc-800 group-hover:border-primary/30 transition-all">
+                            {client.photo_url ? (
+                               <AvatarImage src={client.photo_url} className="object-cover" />
+                            ) : null}
+                             <AvatarFallback className="bg-zinc-900 text-primary font-bold rounded-xl">
+                                {client.contact_name?.[0] || "?"}
+                             </AvatarFallback>
+                          </Avatar>
+                         <div className={cn(
+                           "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                           client.status === 'active' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-zinc-900 border-zinc-800 text-zinc-500"
+                        )}>
+                           {statusLabels[client.status as ClientStatus]}
+                        </div>
+                     </div>
+                     
+                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary transition-colors">{client.contact_name}</h3>
+                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mb-6">{client.company_name || "Súkromná osoba"}</p>
+                     
+                     <div className="space-y-3 mb-6">
+                        <div className="flex items-center gap-3 text-xs text-zinc-400">
+                           <Mail className="h-4 w-4" />
+                           <span className="truncate">{client.email || "Neuvedený"}</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-zinc-400">
+                           <Phone className="h-4 w-4" />
+                           <span>{client.phone || "Neuvedený"}</span>
+                        </div>
+                     </div>
+                     
+                     <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-zinc-800">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{getRegionName(client.region_id)}</span>
+                        <span className="text-sm font-bold text-primary">{formatCurrency(client.total_value)}</span>
+                     </div>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-                  <span>{getRegionName(client.region_id)}</span>
-                  <span>{(client as any).assigned_user?.full_name || "—"}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                ))
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </main>
 
-      {!isLoading && filteredClients.length === 0 && (
-        <EmptyState
-          icon={<Users className="h-full w-full" />}
-          title={
-            searchQuery
-              ? "Nenašli sa žiadne výsledky"
-              : "Ešte nemáte žiadnych klientov"
-          }
-          description={
-            searchQuery
-              ? `Pre výraz "${searchQuery}" sme nenašli žiadnu zhodu.`
-              : "Pridajte svojho prvého klienta alebo konvertujte lead na klienta."
-          }
-          action={{
-            label: "Pridať klienta",
-            onClick: () => setCreateClientOpen(true),
-            icon: <Plus className="h-4 w-4" />,
-          }}
-        />
-      )}
-
-      <ClientDetailDialog
-        client={selectedClient}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        statusLabels={statusLabels}
-        statusVariants={statusVariants}
-        getRegionName={getRegionName}
-        formatCurrency={formatCurrency}
-        onEdit={() => {
-          setDetailOpen(false);
-          setEditingClient(selectedClient);
-          setEditOpen(true);
-        }}
-      />
-
-      <EditClientDialog
-        client={editingClient}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
-
-      <CreateQuoteDialog
-        open={createQuoteOpen}
-        onOpenChange={setCreateQuoteOpen}
-        defaultClientId={quoteClientId}
-      />
-
-      <QuickActivityDialog
-        open={activityOpen}
-        onOpenChange={setActivityOpen}
-        entityType="client"
-        entityId={selectedClient?.id || ""}
-        entityName={selectedClient?.contact_name}
-        defaultType={activityType}
-        defaultContact={{
-          email: selectedClient?.email || undefined,
-          phone: selectedClient?.phone || undefined,
-        }}
-      />
-    </>
+      <CreateClientDialog open={createClientOpen} onOpenChange={setCreateClientOpen} />
+      <EditClientDialog client={currentClient} open={editOpen} onOpenChange={setEditOpen} />
+    </div>
   );
 }

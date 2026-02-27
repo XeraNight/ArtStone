@@ -114,6 +114,7 @@ export function useCreateQuote() {
         inventory_item_id?: string;
       }>;
     }) => {
+      console.log('useCreateQuote: Starting mutation with data:', quote);
       // Calculate totals
       const subtotal = quote.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
       const discount = quote.discount || 0;
@@ -147,7 +148,11 @@ export function useCreateQuote() {
         .select()
         .single();
 
-      if (quoteError) throw quoteError;
+      if (quoteError) {
+        console.error('useCreateQuote: Supabase quote insert error:', quoteError);
+        throw quoteError;
+      }
+      console.log('useCreateQuote: Quote created successfully:', quoteData);
 
       // Insert items
       const itemsToInsert = quote.items.map(item => ({

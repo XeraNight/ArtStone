@@ -23,8 +23,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Camera, X, Upload, UploadCloud, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { createClient as createSupabaseClient } from '@/lib/supabase/client';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export function CreateClientDialog({ open: controlledOpen, onOpenChange: setControlledOpen }: { open?: boolean; onOpenChange?: (open: boolean) => void }) {
     const [internalOpen, setInternalOpen] = useState(false);
@@ -42,7 +44,12 @@ export function CreateClientDialog({ open: controlledOpen, onOpenChange: setCont
         region_id: '',
         status: 'prospect' as 'prospect' | 'active' | 'inactive' | 'completed',
         notes: '',
+        photo_url: '',
     });
+
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [newImageFile, setNewImageFile] = useState<File | null>(null);
 
     const createClient = useCreateClient();
     const { data: regions = [] } = useRegions();
@@ -57,7 +64,32 @@ export function CreateClientDialog({ open: controlledOpen, onOpenChange: setCont
             return;
         }
 
+        let currentPhotoUrl = formData.photo_url;
+        setUploadingPhoto(true);
+
         try {
+            if (newImageFile) {
+                const supabase = createSupabaseClient();
+                const fileExt = newImageFile.name.split('.').pop();
+                const fileName = `new-${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const filePath = fileName;
+
+                const { error: uploadError } = await supabase.storage
+                    .from('clients')
+                    .upload(filePath, newImageFile, {
+                        upsert: true,
+                        contentType: newImageFile.type
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('clients')
+                    .getPublicUrl(filePath);
+
+                currentPhotoUrl = publicUrl;
+            }
+
             await createClient.mutateAsync({
                 contact_name: formData.contact_name,
                 company_name: formData.company_name || null,
@@ -68,10 +100,12 @@ export function CreateClientDialog({ open: controlledOpen, onOpenChange: setCont
                 region_id: formData.region_id || null,
                 status: formData.status,
                 notes: formData.notes || null,
+                photo_url: currentPhotoUrl || null,
             });
 
             toast.success('Klient bol úspešne vytvorený');
             setOpen?.(false);
+            setPhotoPreview(null);
             setFormData({
                 contact_name: '',
                 company_name: '',
@@ -82,6 +116,7 @@ export function CreateClientDialog({ open: controlledOpen, onOpenChange: setCont
                 region_id: '',
                 status: 'prospect',
                 notes: '',
+                photo_url: '',
             });
         } catch (error: any) {
             console.error('Create client error:', error);
@@ -89,29 +124,73 @@ export function CreateClientDialog({ open: controlledOpen, onOpenChange: setCont
             if (error.details) {
                 toast.error(error.details);
             }
+        } finally {
+            setUploadingPhoto(false);
         }
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                {/* Mobile: Icon-only button */}
-                <Button className="md:hidden min-h-[44px] min-w-[44px]" size="icon" title="Nový klient">
-                    <Plus className="h-4 w-4" />
-                </Button>
-            </DialogTrigger>
-            <DialogTrigger asChild>
-                {/* Desktop: Full button */}
-                <Button className="hidden md:flex">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nový klient
-                </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-[95vw] sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Vytvoriť nového klienta</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-4">
+                        <Label className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest text-center block">Fotka klienta</Label>
+                        <label className="flex flex-col justify-center items-center p-6 border-2 border-dashed border-zinc-800 bg-zinc-900/30 text-center hover:bg-zinc-900/50 transition-colors cursor-pointer group relative overflow-hidden min-h-[160px] rounded-xl z-10">
+                            {photoPreview || formData.photo_url ? (
+                                <>
+                                    <img src={photoPreview || formData.photo_url || ''} alt="Náhľad" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span className="text-white font-medium flex items-center gap-2 text-sm bg-black/60 px-4 py-2 rounded-full border border-white/20">
+                                            <RefreshCw className="w-4 h-4" />
+                                            Zmeniť fotku
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setPhotoPreview(null);
+                                            setFormData(prev => ({ ...prev, photo_url: '' }));
+                                        }}
+                                        className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white p-1.5 rounded-full z-20 shadow-lg transition-transform hover:scale-110"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center z-10 select-none">
+                                    <UploadCloud className="w-10 h-10 mb-3 text-zinc-500 group-hover:text-primary transition-colors" />
+                                    <span className="text-sm font-medium text-white">
+                                        {uploadingPhoto ? "Nahrávam..." : "Kliknite pre nahratie fotky"}
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500 mt-1 uppercase tracking-widest">Podpora: PNG, JPG</span>
+                                </div>
+                            )}
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+
+                                    setNewImageFile(file);
+                                    setPhotoPreview(URL.createObjectURL(file));
+                                }}
+                                disabled={uploadingPhoto}
+                            />
+                        </label>
+                        {uploadingPhoto && (
+                            <div className="absolute inset-x-6 top-6 bottom-6 flex items-center justify-center bg-black/60 rounded-xl z-20">
+                                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                            </div>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="contact_name">Meno a priezvisko *</Label>

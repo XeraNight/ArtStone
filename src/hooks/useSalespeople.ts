@@ -1,5 +1,5 @@
 "use client";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Profile, AppRole } from '@/types/database';
@@ -28,8 +28,7 @@ export function useSalespeople() {
           *,
           regions(id, name)
         `)
-        .eq('role', 'sales')
-        .eq('is_active', true);
+        .eq('role', 'sales');
 
       // Manager can only see salespeople in their region
       if (user?.role === 'manager' && user.regionId) {
@@ -81,5 +80,43 @@ export function useSalespeople() {
       return salespeopleWithStats;
     },
     enabled: !!user && (user.role === 'admin' || user.role === 'manager' || user.role === 'správca'),
+  });
+}
+
+export function useUpdateSalespersonStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ is_active, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onMutate: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      await queryClient.cancelQueries({ queryKey: ['salespeople'] });
+      const previousSalespeople = queryClient.getQueryData<Salesperson[]>(['salespeople']);
+      
+      if (previousSalespeople) {
+        queryClient.setQueryData(['salespeople'], (old: Salesperson[] | undefined) => 
+          old?.map((person) => (person.id === id ? { ...person, is_active } : person))
+        );
+      }
+      
+      return { previousSalespeople };
+    },
+    onError: (err: any, variables: any, context: any) => {
+      if (context?.previousSalespeople) {
+        queryClient.setQueryData(['salespeople'], context.previousSalespeople);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['salespeople'] });
+    },
   });
 }

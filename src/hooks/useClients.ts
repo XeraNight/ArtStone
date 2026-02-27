@@ -27,10 +27,15 @@ export function useClients(filters?: ClientFilters) {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching clients:', error);
+        console.error('Error fetching clients from Supabase:', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details
+        });
         throw error;
       }
-      console.log('useClients: fetched', dbData);
+      console.log('useClients: fetched', dbData?.length, 'clients');
       data = dbData as Client[];
 
       if (filters?.status) {
@@ -100,12 +105,23 @@ export function useCreateClient() {
           notes: client.notes,
           assigned_user_id: client.assigned_user_id || user?.id,
           lead_origin_id: client.lead_origin_id,
+          photo_url: client.photo_url || null,
           created_by: user?.id,
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase create client error:', {
+          error,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
+      
+      console.log('Client created successfully:', data.id);
       return data;
     },
     onSuccess: () => {
@@ -133,6 +149,7 @@ export function useUpdateClient() {
         .update({
           ...updates,
           updated_at: new Date().toISOString(),
+          photo_url: updates.photo_url !== undefined ? updates.photo_url : undefined,
         })
         .eq('id', id)
         .select()
@@ -158,9 +175,45 @@ export function useUpdateClient() {
 
       return data;
     },
-    onSuccess: (data) => {
+    onMutate: async (newClient: Partial<Client> & { id: string }) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ['clients'] });
+
+      // Snapshot the previous value
+      const previousQueries = queryClient.getQueriesData({ queryKey: ['clients'] });
+
+      // Optimistically update to the new value in all matching queries
+      queryClient.setQueriesData({ queryKey: ['clients'] }, (old: any) => {
+        if (!old) return old;
+        
+        // Handle both list and single object queries
+        if (Array.isArray(old)) {
+          return old.map((client: Client) => 
+            client.id === newClient.id ? { ...client, ...newClient } : client
+          );
+        }
+        
+        if (old.id === newClient.id) {
+          return { ...old, ...newClient };
+        }
+        
+        return old;
+      });
+
+      return { previousQueries };
+    },
+    onError: (err, newClient, context) => {
+      if (context?.previousQueries) {
+        context.previousQueries.forEach(([queryKey, queryData]) => {
+          queryClient.setQueryData(queryKey, queryData);
+        });
+      }
+    },
+    onSettled: (data) => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
-      queryClient.invalidateQueries({ queryKey: ['clients', data.id] });
+      if (data?.id) {
+        queryClient.invalidateQueries({ queryKey: ['clients', data.id] });
+      }
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     },
   });
@@ -248,6 +301,57 @@ export function useConvertLeadToClient() {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    },
+  });
+}
+
+export function useAssignSalespersonToClient() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({ clientId, salespersonId }: { clientId: string; salespersonId: string | null }) => {
+      const { data, error } = await supabase
+        .from('clients')
+        .update({ salesperson_id: salespersonId, updated_at: new Date().toISOString() })
+        .eq('id', clientId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log activity
+      await supabase.from('activities').insert({
+        entity_type: 'client',
+        entity_id: clientId,
+        activity_type: 'note',
+        title: salespersonId ? 'Klient priradený obchodníkovi' : 'Klient odpojený od obchodníka',
+        description: salespersonId ? 'Klient bol úspešne priradený obchodníkovi' : 'Priradenie obchodníkovi bolo zrušené',
+        created_by: user?.id,
+      });
+
+      return data;
+    },
+    onMutate: async ({ clientId, salespersonId }) => {
+      await queryClient.cancelQueries({ queryKey: ['clients'] });
+      const previousClients = queryClient.getQueryData<Client[]>(['clients']);
+      
+      if (previousClients) {
+        queryClient.setQueryData(['clients'], (old: Client[] | undefined) => 
+          old?.map((client) => (client.id === clientId ? { ...client, salesperson_id: salespersonId } : client))
+        );
+      }
+      
+      return { previousClients };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousClients) {
+        queryClient.setQueryData(['clients'], context.previousClients);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
     },
   });
 }

@@ -1,10 +1,4 @@
-import { ProductDetailClientView } from './components/ProductDetailClientView';
-
-export function generateStaticParams() {
-  return [{ id: 'dummy' }];
-}
-export const dynamic = 'force-static';
-export const dynamicParams = false;
+import { ProductDetailClientView } from "../components/ProductDetailClientView";
 
 export default async function ProductDetailPage({
   params,
@@ -12,6 +6,5 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
   return <ProductDetailClientView productId={id} />;
 }

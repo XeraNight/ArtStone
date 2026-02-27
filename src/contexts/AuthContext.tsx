@@ -14,6 +14,7 @@ export interface AppUser {
   regionId: string | null;
   regionName: string;
   avatar?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
@@ -27,6 +28,13 @@ interface AuthContextType {
   logout: () => Promise<void>;
   deleteAccount: () => Promise<{ error: string | null }>;
   refreshUser: () => Promise<void>;
+  // MFA Methods
+  enrollMfa: () => Promise<{ data: any; error: any }>;
+  verifyMfa: (factorId: string, code: string) => Promise<{ error: any }>;
+  unenrollMfa: (factorId: string) => Promise<{ error: any }>;
+  challengeMfa: (factorId: string) => Promise<{ data: any; error: any }>;
+  verifyChallenge: (factorId: string, challengeId: string, code: string) => Promise<{ error: any }>;
+  listMfaFactors: () => Promise<{ data: any; error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,7 +43,6 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
   try {
     console.log('[Auth] Fetching user data for:', userId);
 
-    // Try to fetch profile from database
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*, regions(name)')
@@ -44,34 +51,23 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
 
     console.log('[Auth] Profile fetch result:', { profile, error: profileError });
 
-    // If no profile exists, create fallback from auth data
     if (!profile) {
       console.log('[Auth] No profile found, creating fallback');
-      // 1. Get fallback data from auth metadata
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const email = authEmail || authUser?.email || 'unknown@email.com';
       const fullName = authUser?.user_metadata?.full_name || email.split('@')[0];
       const metaRole = authUser?.user_metadata?.role as UserRole;
       const metaRegionId = authUser?.user_metadata?.region_id;
 
-      // 2. Try to fetch role from user_roles as secondary fallback
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
         .maybeSingle();
 
-      console.log('[Auth] Role fallback:', { roleData, metaRole });
-
-      // Prioritize metadata role > user_roles > default 'sales'
       const role = metaRole || (roleData?.role as UserRole) || 'sales';
-      // Use metadata region or null
       const regionId = metaRegionId || null;
 
-      // 3. Self-healing: Create the missing profile using available data
-      console.log('[Auth] Self-healing: Creating missing profile from metadata');
-
-      // First check if profile was just created (to avoid race condition with signup)
       const { data: checkProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -79,7 +75,7 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
         .maybeSingle();
 
       if (!checkProfile) {
-        const { error: healError } = await supabase
+        await supabase
           .from('profiles')
           .insert({
             id: userId,
@@ -89,14 +85,6 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
             region_id: regionId,
             updated_at: new Date().toISOString()
           });
-
-        if (healError) {
-          console.error('[Auth] Self-healing failed:', healError);
-        } else {
-          console.log('[Auth] Self-healing successful');
-        }
-      } else {
-        console.log('[Auth] Profile already exists, skipping self-healing');
       }
 
       return {
@@ -105,24 +93,20 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
         email: email,
         role,
         regionId: regionId,
-        regionName: 'Košický kraj', // We don't have the region name joined yet, user needs to refresh or we could fetch it, but keeping it simple for now
+        regionName: 'Košický kraj',
         avatar: fullName.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U',
+        phone: '',
       };
     }
 
-    // Fetch role from user_roles table (legacy/backup)
-    const { data: roleData, error: roleError } = await supabase
+    const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .maybeSingle();
 
-    console.log('[Auth] Role fetch result:', { roleData, error: roleError, profileRole: profile.role });
-
-    // Prioritize role from profile, then user_roles, then default to sales
     const role = (profile.role as UserRole) || (roleData?.role as UserRole) || 'sales';
 
-    // Safely extract region name, handling potential array return from Supabase
     let regionName = 'Neurčený región';
     if (profile.regions) {
       if (Array.isArray(profile.regions) && profile.regions.length > 0) {
@@ -132,13 +116,6 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
       }
     }
 
-    console.log('[Auth] Final user role:', role);
-    console.log('[Auth] Region data:', {
-      region_id: profile.region_id,
-      regions_raw: profile.regions,
-      final_regionName: regionName
-    });
-
     return {
       id: profile.id,
       name: profile.full_name || profile.email,
@@ -147,10 +124,10 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
       regionId: profile.region_id,
       regionName: regionName,
       avatar: profile.avatar_url || profile.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase(),
+      phone: profile.phone || '',
     };
   } catch (error) {
     console.error('[Auth] Error in fetchUserData:', error);
-    // Fallback from auth user on any error
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (authUser) {
       const email = authEmail || authUser.email || 'unknown@email.com';
@@ -163,6 +140,7 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
         regionId: null,
         regionName: 'Neurčený región',
         avatar: fullName.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U',
+        phone: '',
       };
     }
     return null;
@@ -170,15 +148,24 @@ async function fetchUserData(userId: string, authEmail?: string): Promise<AppUse
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('artstone-user');
-      return stored ? JSON.parse(stored) : null;
-    }
-    return null;
-  });
+  const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize from localStorage AFTER mounting to avoid hydration mismatch
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('artstone-user');
+      if (stored) {
+        try {
+          setUser(JSON.parse(stored));
+        } catch (e) {
+          console.error("Error parsing stored user:", e);
+          localStorage.removeItem('artstone-user');
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -209,6 +196,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     const initAuth = async () => {
+      if (typeof window === 'undefined') return;
+      
       try {
         const { data: { session: existingSession }, error } = await supabase.auth.getSession();
         
@@ -449,6 +438,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const enrollMfa = async () => {
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      issuer: 'ArtStone CRM'
+    });
+    return { data, error };
+  };
+
+  const verifyMfa = async (factorId: string, code: string) => {
+    const { error } = await supabase.auth.mfa.challengeAndVerify({
+      factorId,
+      code,
+    });
+    return { error };
+  };
+
+  const unenrollMfa = async (factorId: string) => {
+    const { error } = await supabase.auth.mfa.unenroll({
+      factorId,
+    });
+    return { error };
+  };
+
+  const challengeMfa = async (factorId: string) => {
+    const { data, error } = await supabase.auth.mfa.challenge({
+      factorId,
+    });
+    return { data, error };
+  };
+
+  const verifyChallenge = async (factorId: string, challengeId: string, code: string) => {
+    const { error } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId,
+      code,
+    });
+    return { error };
+  };
+
+  const listMfaFactors = async () => {
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    return { data, error };
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -462,6 +495,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         deleteAccount,
         refreshUser,
+        enrollMfa,
+        verifyMfa,
+        unenrollMfa,
+        challengeMfa,
+        verifyChallenge,
+        listMfaFactors,
       }}
     >
       {children}

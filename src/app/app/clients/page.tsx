@@ -9,9 +9,7 @@ const ClientsClientView = dynamic(
 
 export default function ClientsPage() {
   return (
-    <div className="space-y-6 animate-fade-in">
-        <h1 className="text-3xl font-display font-bold">Klienti</h1>
-        <p className="text-muted-foreground">Správa aktívnych a potenciálnych klientov.</p>
+    <div className="animate-fade-in">
         <ClientsClientView />
     </div>
   );
